@@ -1,0 +1,19 @@
+{
+  "name": "lab-1-codigo-municipal",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.1",
+    "html-to-pdfmake": "^2.5.15",
+    "jsdom": "^25.0.1",
+    "lab-1-codigo-municipal": "file:",
+    "pdfmake": "^0.2.5"
+  }
+}
