@@ -448,7 +448,12 @@ async function buildDocument(htmlContents) {
     });
   }
 
-  function replaceSupTags(html, referencia){
+  function replaceSupTags(html, referencia) {
+    if (typeof html !== 'string') {
+      // Maneja el caso donde html no es una cadena
+      console.warn('El valor de html no es una cadena:', html);
+      return '';
+    }
     return html.replace(/<sup>(.*?)<\/sup>/g, `<sup style="font-size: 8px; vertical-align: super;" class="superscript">$1</sup>`);
   }
 
@@ -474,8 +479,25 @@ async function buildDocument(htmlContents) {
       const foundNode = await findNodeById(rootNodes, idHijo); 
       if (foundNode) {
         console.log('Nodo encontrado:', foundNode);
+        return foundNode;
       } else {
         console.log('Nodo no encontrado');
+        return [];
+      }
+    } catch (error) {
+      console.error('Error buscando el nodo:', error);
+    }
+  }
+
+  async function searchNodeAll() {
+    try {
+      const rootNodes = await ArticuloNode.find({}); 
+      if (rootNodes) {
+        console.log('rootNodes:', rootNodes);
+        return rootNodes;
+      } else {
+        console.log('Nodo no encontrado');
+        return [];
       }
     } catch (error) {
       console.error('Error buscando el nodo:', error);
@@ -485,12 +507,15 @@ async function buildDocument(htmlContents) {
 // Endpoint para generar el PDF
 app.post('/generate-pdf', async (req, res) => {
     try {
+        /* const datos = await searchNode('66c765cfce42406a9d40d87b', '66c765cfce42406a9d40d87b');
         const { htmlContents } = {
-            "htmlContents": []
+          "htmlContents": [datos]
+        }; */
+
+        const datos = await searchNodeAll();
+        const { htmlContents } = {
+          "htmlContents": datos
         };
-        //console.log('BUSCANDO NODO');
-        searchNode('66c765c1ce42406a9d40d255', '66c765c1ce42406a9d40d257');
-        //console.log('FIN BUSQUEDA NODO');
         const aplanar = await buildCompleteList(htmlContents);
         //console.log('Es array:', Array.isArray(aplanar));
         const aplanadaNotas = preprocessContent(aplanar);
