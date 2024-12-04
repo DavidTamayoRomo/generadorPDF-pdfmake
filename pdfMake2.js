@@ -225,21 +225,22 @@ function processContentNotas(modifiedPdfContent, notasLimpias) {
   // Encontrar los elementos con 'SUP'
   const foundItems = findGrandparentWithNodeName(modifiedPdfContent, 'SUP');
 
-  // Obtener posiciones
+  /* // Obtener posiciones
   foundItems.forEach((item) => {
     if (item.positions && item.positions.length > 0) {
       item.pageNumber = getMostFrequentPageNumber(item.positions);
     } else {
       item.pageNumber = 1; // Por defecto, página 1
     }
-  });
+  }); */
 
   const datosCompletos = verificadorDeArray(foundItems, notasLimpias);
 
   const result = [];
 datosCompletos.forEach((itemArray) => {
   itemArray.forEach((item) => {
-    const pageNumber = item.itemFromArray1 && item.itemFromArray1.pageNumber ? item.itemFromArray1.pageNumber : 1;
+    //const pageNumber = item.itemFromArray1 && item.itemFromArray1.pageNumber ? item.itemFromArray1.pageNumber : 1;
+    const pageNumber = item?.itemFromArray1?.positions[0]?.pageNumber.length > 10 ? item?.itemFromArray1?.positions[0]?.pageNumber : getMostFrequentPageNumber(item?.itemFromArray1?.positions)
 
     const transformedItem = {
       text: item.itemFromArray2.text,
@@ -257,68 +258,28 @@ datosCompletos.forEach((itemArray) => {
 
 // Función para generar el PDF
 async function generatePDF(docDefinition, cont) {
-    //console.log(`Generando PDF (pasada ${cont})...`);
-    return new Promise((resolve, reject) => {
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      const chunks = [];
-  
-      // Suscribirse al evento 'data' para leer los datos del PDF
-      pdfDoc.on('data', (chunk) => chunks.push(chunk));
-  
-      // Suscribirse al evento 'end' para saber cuándo ha terminado la generación
-      pdfDoc.on('end', () => {
-        //console.log(`Pasada ${cont} del PDF completada.`);
-        const result = Buffer.concat(chunks);
-  
-        // Guardar el PDF generado
-        const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir);
-          //console.log('Directorio "uploads" creado.');
-        }
-  
-        let filePath;
-        if (cont === 1) {
-          // En la primera pasada, guardamos el PDF como 'document_first_pass.pdf'
-          filePath = path.join(uploadDir, 'document_first_pass.pdf');
-          //console.log('Guardando PDF de la primera pasada en:', filePath);
-  
-          fs.writeFile(filePath, result, (err) => {
-            if (err) {
-              console.error('Error guardando el archivo de la primera pasada:', err);
-              return reject(err);
-            }
-  
-            //console.log('PDF de la primera pasada guardado en uploads/document_first_pass.pdf');
-            resolve();
-          });
-        } else if (cont === 2) {
-          // En la segunda pasada, guardamos el PDF final
-          filePath = path.join(uploadDir, 'document.pdf');
-          //console.log('Guardando PDF final en:', filePath);
-  
-          fs.writeFile(filePath, result, (err) => {
-            if (err) {
-              console.error('Error guardando el archivo final:', err);
-              return reject(err);
-            }
-  
-            //console.log('PDF final guardado en uploads/document.pdf');
-            // Enviamos el resultado para que pueda ser enviado en la respuesta
-            resolve(result);
-          });
-        }
-      });
-  
-      pdfDoc.on('error', (err) => {
-        console.error('Error generando el PDF:', err);
-        reject(err);
-      });
-  
-      // Iniciamos la generación del PDF
-      pdfDoc.end();
+  return new Promise((resolve, reject) => {
+    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+    const chunks = [];
+
+    // Suscribirse al evento 'data' para leer los datos del PDF
+    pdfDoc.on('data', (chunk) => chunks.push(chunk));
+
+    // Suscribirse al evento 'end' para saber cuándo ha terminado la generación
+    pdfDoc.on('end', () => {
+      const result = Buffer.concat(chunks);
+      resolve(result); // Devuelve el PDF como un buffer
     });
-  }
+
+    pdfDoc.on('error', (err) => {
+      console.error('Error generando el PDF:', err);
+      reject(err);
+    });
+
+    // Iniciamos la generación del PDF
+    pdfDoc.end();
+  });
+}
 
   
 // Función para construir el documento
@@ -506,103 +467,55 @@ async function buildDocument(htmlContents) {
     }
   }
 
+  
 // Endpoint para generar el PDF
 app.post('/generate-pdf', async (req, res) => {
-    try {
-        const { id1, id2 } = req.body;
-        console.log("id1",id1);
-        console.log("id2",id2);
-        const datos = await searchNode(id1, id2);
-        const { htmlContents } = {
-          "htmlContents": [datos]
-        };
+  try {
+    const { id1, id2 } = req.body;
+    const datos = await searchNode(id1, id2);
+    const { htmlContents } = {
+      htmlContents: [datos],
+    };
 
-        /* const datos = await searchNodeAll();
-        const { htmlContents } = {
-          "htmlContents": datos
-        }; */
-        const aplanar = await buildCompleteList(htmlContents);
-        //console.log('Es array:', Array.isArray(aplanar));
-        const aplanadaNotas = preprocessContent(aplanar);
-        const docDefinition = await buildDocument(aplanadaNotas);
-        //console.log(docDefinition);
+    const aplanar = await buildCompleteList(htmlContents);
+    const aplanadaNotas = preprocessContent(aplanar);
+    const docDefinition = await buildDocument(aplanadaNotas);
+
     // Generar el PDF final
-    //console.log('Generando PDF final...');
     const result = await generatePDF(docDefinition, 2);
 
-    // Guardar el PDF en el directorio 'uploads'
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-      //console.log('Directorio "uploads" creado.');
-    }
-
-    const filePath = path.join(uploadDir, 'document.pdf');
-    //console.log('Guardando PDF en:', filePath);
-
-    fs.writeFile(filePath, result, (err) => {
-      if (err) {
-        console.error('Error guardando el archivo:', err);
-        return res.status(500).send('Error guardando el archivo');
-      }
-
-      //console.log('PDF guardado en uploads/document.pdf');
-
-      // Enviar el PDF como respuesta
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=document.pdf');
-      res.send(result);
-    });
+    // Enviar el PDF directamente como respuesta
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=document.pdf');
+    res.send(result);
   } catch (error) {
     console.error('Error generando el PDF:', error);
     res.status(500).send('Error generando el PDF');
   }
 });
 
-
 app.post('/generate-pdf-completo', async (req, res) => {
   try {
+    const datos = await searchNodeAll();
+    const { htmlContents } = {
+      htmlContents: datos,
+    };
 
-      const datos = await searchNodeAll();
-      const { htmlContents } = {
-        "htmlContents": datos
-      };
-      const aplanar = await buildCompleteList(htmlContents);
-      //console.log('Es array:', Array.isArray(aplanar));
-      const aplanadaNotas = preprocessContent(aplanar);
-      const docDefinition = await buildDocument(aplanadaNotas);
-      //console.log(docDefinition);
-  // Generar el PDF final
-  //console.log('Generando PDF final...');
-  const result = await generatePDF(docDefinition, 2);
+    const aplanar = await buildCompleteList(htmlContents);
+    const aplanadaNotas = preprocessContent(aplanar);
+    const docDefinition = await buildDocument(aplanadaNotas);
 
-  // Guardar el PDF en el directorio 'uploads'
-  const uploadDir = path.join(__dirname, 'uploads');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-    //console.log('Directorio "uploads" creado.');
-  }
+    // Generar el PDF final
+    const result = await generatePDF(docDefinition, 2);
 
-  const filePath = path.join(uploadDir, 'document.pdf');
-  //console.log('Guardando PDF en:', filePath);
-
-  fs.writeFile(filePath, result, (err) => {
-    if (err) {
-      console.error('Error guardando el archivo:', err);
-      return res.status(500).send('Error guardando el archivo');
-    }
-
-    //console.log('PDF guardado en uploads/document.pdf');
-
-    // Enviar el PDF como respuesta
+    // Enviar el PDF directamente como respuesta
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=document.pdf');
     res.send(result);
-  });
-} catch (error) {
-  console.error('Error generando el PDF:', error);
-  res.status(500).send('Error generando el PDF');
-}
+  } catch (error) {
+    console.error('Error generando el PDF:', error);
+    res.status(500).send('Error generando el PDF');
+  }
 });
 
 // Iniciar el servidor
