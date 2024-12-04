@@ -6,10 +6,12 @@ const { JSDOM } = require('jsdom');
 const path = require('path');
 const mongoose = require('mongoose');
 const ArticuloNode = require('./models/ArticuloNode');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 // Configuración de fuentes
 const fonts = {
@@ -507,15 +509,18 @@ async function buildDocument(htmlContents) {
 // Endpoint para generar el PDF
 app.post('/generate-pdf', async (req, res) => {
     try {
-        /* const datos = await searchNode('66c765cfce42406a9d40d87b', '66c765cfce42406a9d40d87b');
+        const { id1, id2 } = req.body;
+        console.log("id1",id1);
+        console.log("id2",id2);
+        const datos = await searchNode(id1, id2);
         const { htmlContents } = {
           "htmlContents": [datos]
-        }; */
+        };
 
-        const datos = await searchNodeAll();
+        /* const datos = await searchNodeAll();
         const { htmlContents } = {
           "htmlContents": datos
-        };
+        }; */
         const aplanar = await buildCompleteList(htmlContents);
         //console.log('Es array:', Array.isArray(aplanar));
         const aplanadaNotas = preprocessContent(aplanar);
@@ -554,7 +559,53 @@ app.post('/generate-pdf', async (req, res) => {
   }
 });
 
+
+app.post('/generate-pdf-completo', async (req, res) => {
+  try {
+
+      const datos = await searchNodeAll();
+      const { htmlContents } = {
+        "htmlContents": datos
+      };
+      const aplanar = await buildCompleteList(htmlContents);
+      //console.log('Es array:', Array.isArray(aplanar));
+      const aplanadaNotas = preprocessContent(aplanar);
+      const docDefinition = await buildDocument(aplanadaNotas);
+      //console.log(docDefinition);
+  // Generar el PDF final
+  //console.log('Generando PDF final...');
+  const result = await generatePDF(docDefinition, 2);
+
+  // Guardar el PDF en el directorio 'uploads'
+  const uploadDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+    //console.log('Directorio "uploads" creado.');
+  }
+
+  const filePath = path.join(uploadDir, 'document.pdf');
+  //console.log('Guardando PDF en:', filePath);
+
+  fs.writeFile(filePath, result, (err) => {
+    if (err) {
+      console.error('Error guardando el archivo:', err);
+      return res.status(500).send('Error guardando el archivo');
+    }
+
+    //console.log('PDF guardado en uploads/document.pdf');
+
+    // Enviar el PDF como respuesta
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=document.pdf');
+    res.send(result);
+  });
+} catch (error) {
+  console.error('Error generando el PDF:', error);
+  res.status(500).send('Error generando el PDF');
+}
+});
+
 // Iniciar el servidor
-app.listen(3002, () => {
+app.listen(4003, () => {
   //console.log('Servidor de PDFs ejecutándose en http://localhost:3002');
 });
